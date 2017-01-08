@@ -7,7 +7,6 @@ package devapp
 import (
 	"fmt"
 	"html/template"
-	"io/ioutil"
 	"net/http"
 	"sort"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	"github.com/google/go-github/github"
 	"golang.org/x/build/godash"
 	"golang.org/x/net/context"
+	"golang.org/x/tools/godoc/vfs"
 )
 
 var onAppengine = false
@@ -99,7 +99,7 @@ func parseData(cache *Cache) (*godash.Data, error) {
 	return data, unpackCache(cache, &data)
 }
 
-func showDash(w http.ResponseWriter, req *http.Request) {
+func showDash(w http.ResponseWriter, req *http.Request, fs vfs.FileSystem) {
 	ctx := getContext(req)
 	req.ParseForm()
 
@@ -116,11 +116,6 @@ func showDash(w http.ResponseWriter, req *http.Request) {
 	d.activeMilestones = data.GetActiveMilestones()
 	// TODO(quentin): Load the user's preferences into d.pref.
 
-	tmpl, err := ioutil.ReadFile("template/dash.html")
-	if err != nil {
-		log.Errorf(ctx, "reading template: %v", err)
-		return
-	}
 	t, err := template.New("main").Funcs(template.FuncMap{
 		"css":     d.css,
 		"join":    d.join,
@@ -133,9 +128,10 @@ func showDash(w http.ResponseWriter, req *http.Request) {
 		"since":   d.since,
 		"ghemail": d.ghemail,
 		"release": d.release,
-	}).Parse(string(tmpl))
+	}).Parse(string(dashBytes))
 	if err != nil {
 		log.Errorf(ctx, "parsing template: %v", err)
+		http.Error(w, err.Error(), 500)
 		return
 	}
 

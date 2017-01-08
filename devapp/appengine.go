@@ -10,6 +10,7 @@ import (
 	"net/http"
 
 	"golang.org/x/net/context"
+	"golang.org/x/tools/godoc/vfs"
 	"google.golang.org/appengine"
 	"google.golang.org/appengine/datastore"
 	applog "google.golang.org/appengine/log"
@@ -21,7 +22,12 @@ func init() {
 	onAppengine = !appengine.IsDevAppServer()
 	log = &appengineLogger{}
 
+}
+
+func registerPerBuildHandlers(mux *http.ServeMux, fs vfs.FileSystem) {
 	http.HandleFunc("/setToken", setTokenHandler)
+	// The static handlers present in noappengine.go are covered by the app.yaml
+	// present in this file.
 }
 
 type appengineLogger struct{}

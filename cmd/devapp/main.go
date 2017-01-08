@@ -23,7 +23,9 @@ import (
 	"net/http"
 	"os"
 
-	_ "golang.org/x/build/devapp"
+	"golang.org/x/build/devapp"
+	"golang.org/x/tools/godoc/vfs"
+	"golang.org/x/tools/godoc/vfs/mapfs"
 )
 
 func init() {
@@ -31,18 +33,27 @@ func init() {
 		os.Stderr.WriteString(`usage: devapp [-port=port]
 
 Devapp generates the dashboard that powers dev.golang.org.
+
 `)
-		os.Exit(2)
+		flag.PrintDefaults()
 	}
 }
 
 func main() {
+	templateDir := flag.String("templates", "", "load templates/JS/CSS from disk in this directory (for local development)")
 	port := flag.Uint("port", 8081, "Port to listen on")
 	flag.Parse()
+	var fs vfs.FileSystem
+	if *templateDir != "" {
+		fs = vfs.OS(*templateDir)
+	} else {
+		fs = mapfs.New(devapp.Files)
+	}
+	mux := devapp.NewServeMux(fs)
 	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Fprintf(os.Stderr, "Listening on port %d\n", *port)
-	log.Fatal(http.Serve(ln, nil))
+	log.Fatal(http.Serve(ln, mux))
 }

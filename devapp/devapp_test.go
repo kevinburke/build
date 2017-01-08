@@ -8,20 +8,28 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"golang.org/x/tools/godoc/vfs/mapfs"
 )
+
+var mux *http.ServeMux
+
+func init() {
+	mux = NewServeMux(mapfs.New(Files))
+}
 
 func TestHSTSHeaderSetDash(t *testing.T) {
 	req := httptest.NewRequest("GET", "/dash", nil)
 	w := httptest.NewRecorder()
-	http.DefaultServeMux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, req)
 	if hdr := w.Header().Get("Strict-Transport-Security"); hdr == "" {
 		t.Errorf("missing Strict-Transport-Security header; headers = %v", w.Header())
 	}
 }
 
-func TestReleaseReturns(t *testing.T) {
+func TestDashReturns(t *testing.T) {
 	req := httptest.NewRequest("GET", "/dash", nil)
 	w := httptest.NewRecorder()
-	http.DefaultServeMux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, req)
 	// This shouldn't panic. TODO add a better assertion.
 }

@@ -7,10 +7,16 @@
 // command/library.
 package devapp
 
+// Run this to copy all the static files on disk into the binary
+
+//go:generate go run makestatic.go
+
 import (
 	"bytes"
 	"fmt"
+	"html/template"
 	"io"
+	"io/ioutil"
 	stdlog "log"
 	"net/http"
 	"strings"
@@ -20,25 +26,51 @@ import (
 	"golang.org/x/build/gerrit"
 	"golang.org/x/build/godash"
 	"golang.org/x/net/context"
+	"golang.org/x/tools/godoc/vfs"
 )
 
 const entityPrefix = "DevApp"
 
 var gerritTransport http.RoundTripper
+var releaseTpl *template.Template
+var dashBytes []byte
 
-func init() {
+func NewServeMux(fs vfs.FileSystem) *http.ServeMux {
+	dashBytes = mustOpen(fs, "templates/dash.html")
+	tplBytes := mustOpen(fs, "templates/release.html")
+	releaseTpl = template.Must(template.New("release").Parse(string(tplBytes)))
+	mux := http.NewServeMux()
 	for _, page := range []string{"release", "cl"} {
 		page := page
-		http.Handle("/"+page, hstsHandler(func(w http.ResponseWriter, r *http.Request) { servePage(w, r, page) }))
+		mux.Handle("/"+page, hstsHandler(func(w http.ResponseWriter, r *http.Request) { servePage(w, r, page) }))
 	}
-	http.Handle("/dash", hstsHandler(showDash))
-	http.Handle("/update", ctxHandler(update))
+	mux.Handle("/dash", hstsHandler(func(w http.ResponseWriter, r *http.Request) {
+		showDash(w, r, fs)
+	}))
+	mux.Handle("/update", ctxHandler(update))
 	// Defined in stats.go
-	http.HandleFunc("/stats/raw", rawHandler)
-	http.HandleFunc("/stats/svg", svgHandler)
-	http.Handle("/stats/release", ctxHandler(release))
-	http.Handle("/stats/release/data.js", ctxHandler(releaseData))
-	http.Handle("/update/stats", ctxHandler(updateStats))
+	mux.HandleFunc("/stats/raw", rawHandler)
+	mux.HandleFunc("/stats/svg", svgHandler)
+	mux.Handle("/stats/release", ctxHandler(release))
+	mux.Handle("/stats/release/data.js", ctxHandler(releaseData))
+	mux.Handle("/update/stats", ctxHandler(updateStats))
+	registerPerBuildHandlers(mux, fs)
+	return mux
+}
+
+// mustOpen returns the contents of the file with the given name from fs, or
+// panics.
+func mustOpen(fs vfs.FileSystem, filename string) []byte {
+	f, err := fs.Open(filename)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+	bits, err := ioutil.ReadAll(f)
+	if err != nil {
+		panic(err)
+	}
+	return bits
 }
 
 // hstsHandler wraps an http.HandlerFunc such that it sets the HSTS header.

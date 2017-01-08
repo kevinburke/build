@@ -7,7 +7,6 @@
 package devapp
 
 import (
-	"net/http"
 	"net/http/httptest"
 	"testing"
 )
@@ -15,7 +14,7 @@ import (
 func TestStaticAssetsFound(t *testing.T) {
 	req := httptest.NewRequest("GET", "/static/dash.css", nil)
 	w := httptest.NewRecorder()
-	http.DefaultServeMux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, req)
 	if w.Code != 200 {
 		t.Errorf("expected code 200, got %d", w.Code)
 	}
@@ -27,7 +26,7 @@ func TestStaticAssetsFound(t *testing.T) {
 func TestFaviconFound(t *testing.T) {
 	req := httptest.NewRequest("GET", "/favicon.ico", nil)
 	w := httptest.NewRecorder()
-	http.DefaultServeMux.ServeHTTP(w, req)
+	mux.ServeHTTP(w, req)
 	if w.Code != 200 {
 		t.Errorf("expected code 200, got %d", w.Code)
 	}

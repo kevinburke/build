@@ -20,15 +20,24 @@ import (
 	"time"
 
 	"golang.org/x/net/context"
+	"golang.org/x/tools/godoc/vfs"
+	"golang.org/x/tools/godoc/vfs/httpfs"
 )
 
 var tokenFile = flag.String("token", "", "read GitHub token personal access token from `file` (default $HOME/.github-issue-token)")
 
 func init() {
 	log = &stderrLogger{}
-	// TODO don't bind to the working directory.
-	http.Handle("/static/", http.FileServer(http.Dir(".")))
-	http.HandleFunc("/favicon.ico", faviconHandler)
+}
+
+// registerPerBuildHandlers registers non-App Engine handlers.
+func registerPerBuildHandlers(mux *http.ServeMux, fs vfs.FileSystem) {
+	mux.Handle("/static/", http.FileServer(httpfs.New(fs)))
+	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/x-icon")
+		r.URL.Path = "/static/favicon.ico"
+		mux.ServeHTTP(w, r)
+	})
 }
 
 type stderrLogger struct{}
@@ -166,9 +175,4 @@ func getToken(ctx context.Context) (string, error) {
 
 func getContext(r *http.Request) context.Context {
 	return r.Context()
-}
-
-func faviconHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "image/x-icon")
-	http.ServeFile(w, r, "./static/favicon.ico")
 }

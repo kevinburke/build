@@ -1,4 +1,4 @@
-// Copyright 2016 The Go Authors.  All rights reserved.
+// Copyright 2016 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -7,9 +7,7 @@ package devapp
 import (
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"image/color"
-	"io/ioutil"
 	"math"
 	"net/http"
 	"regexp"
@@ -91,17 +89,6 @@ func updateStats(ctx context.Context, w http.ResponseWriter, r *http.Request) er
 func release(ctx context.Context, w http.ResponseWriter, req *http.Request) error {
 	req.ParseForm()
 
-	// TODO add this to the binary with go-bindata or similar.
-	tmpl, err := ioutil.ReadFile("template/release.html")
-	if err != nil {
-		return err
-	}
-
-	t, err := template.New("main").Parse(string(tmpl))
-	if err != nil {
-		return err
-	}
-
 	cycle, _, err := argtoi(req, "cycle")
 	if err != nil {
 		return err
@@ -114,7 +101,7 @@ func release(ctx context.Context, w http.ResponseWriter, req *http.Request) erro
 		cycle = data.GoReleaseCycle
 	}
 
-	return t.Execute(w, struct{ GoReleaseCycle int }{cycle})
+	return releaseTpl.Execute(w, struct{ GoReleaseCycle int }{cycle})
 }
 
 // GET /stats/raw
