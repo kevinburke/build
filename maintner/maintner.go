@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/google/go-github/github"
+	"github.com/kevinburke/rest"
 	"golang.org/x/build/maintner/maintpb"
 	"golang.org/x/oauth2"
 )
@@ -174,23 +175,36 @@ func (c *Corpus) PopulateFromAPIs(ctx context.Context) error {
 	panic("TODO")
 }
 
-func (c *Corpus) PollGithubLoop(owner, repo, tokenFile string) error {
+func newGithubClient(tokenFile string) (*github.Client, error) {
 	slurp, err := ioutil.ReadFile(tokenFile)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	f := strings.SplitN(strings.TrimSpace(string(slurp)), ":", 2)
 	if len(f) != 2 || f[0] == "" || f[1] == "" {
-		return fmt.Errorf("Expected token file %s to be of form <username>:<token>", tokenFile)
+		return nil, fmt.Errorf("Expected token file %s to be of form <username>:<token>", tokenFile)
 	}
 	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: f[1]})
 	tc := oauth2.NewClient(oauth2.NoContext, ts)
-	ghc := github.NewClient(tc)
+	tc.Transport = &rest.Transport{
+		Debug:        rest.DefaultTransport.Debug,
+		Output:       rest.DefaultTransport.Output,
+		RoundTripper: tc.Transport,
+	}
+	return github.NewClient(tc), nil
+}
+
+func (c *Corpus) PollGithubLoop(owner, repo, tokenFile string) error {
+	ghc, err := newGithubClient(tokenFile)
+	if err != nil {
+		return err
+	}
 	for {
 		err := c.pollGithub(owner, repo, ghc)
 		log.Printf("Polled github for %s/%s; err = %v. Sleeping.", owner, repo, err)
 		time.Sleep(30 * time.Second)
 	}
+	return nil
 }
 
 func (c *Corpus) pollGithub(owner, repo string, ghc *github.Client) error {
@@ -215,7 +229,7 @@ func (c *Corpus) pollGithub(owner, repo string, ghc *github.Client) error {
 		keepGoing = false
 		for _, is := range issues {
 			_ = is
-			changes := false
+			changes := len(issues) > 0
 			if changes {
 				keepGoing = true
 			}

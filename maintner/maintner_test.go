@@ -5,10 +5,14 @@
 package maintner
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"reflect"
 	"testing"
 
 	"golang.org/x/build/maintner/maintpb"
+	"golang.org/x/build/maintner/testdata"
 )
 
 type mutationTest struct {
@@ -57,4 +61,27 @@ func TestProcessMutation_Github_NewIssue(t *testing.T) {
 			Body: "some body",
 		},
 	})
+}
+
+func TestDownload(t *testing.T) {
+	count := 0
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if count == 0 {
+			w.Write(testdata.IssueResponse)
+		} else {
+			w.Write([]byte(`[]`))
+		}
+		count++
+	}))
+	defer s.Close()
+	ghc, err := newGithubClient(".github-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, _ := url.Parse(s.URL)
+	ghc.BaseURL = u
+	c := Corpus{}
+	if err := c.pollGithub("golang", "go", ghc); err != nil {
+		t.Fatal(err)
+	}
 }
