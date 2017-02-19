@@ -1,0 +1,25 @@
+sudo: required
+language: go
+go_import_path: golang.org/x/build
+
+services:
+  - docker
+
+before_install:
+  # Hack to work around https://github.com/golang/go/issues/20423.
+  - go get go4.org/syncutil
+
+go:
+  - 1.10.x
+  - master
+
+script:
+  - go vet ./... || true
+  # there's a flaky test, as well as Maintner, skip it with short.
+  - go test -short -v -race ./...
+  - (cd cmd/coordinator && make docker-staging)
+  - (cd cmd/gitmirror && make docker-staging)
+  - (cd cmd/gopherbot && make docker-image)
+  - (cd cmd/pubsubhelper && make docker-staging)
+  - (cd devapp && make docker-staging)
+  - (cd maintner/maintnerd && make docker-staging)
