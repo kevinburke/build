@@ -1,0 +1,24 @@
+sudo: required
+language: go
+go_import_path: golang.org/x/build
+
+services:
+  - docker
+
+before_install:
+  # Hack to work around https://github.com/golang/go/issues/20423.
+  - go get go4.org/syncutil
+
+go:
+  - 1.8
+  - tip
+
+script:
+  - go vet ./... || true
+  - go test -v -race ./...
+  - pushd cmd/coordinator && make docker-dev && popd
+  - pushd cmd/gitmirror && make docker-dev && popd
+  - pushd cmd/gopherbot && make docker-dev && popd
+  - pushd cmd/pubsubhelper && make docker-dev && popd
+  - pushd devapp/devappserver && make docker-dev && popd
+  - pushd maintner/maintnerd && make docker-dev && popd
