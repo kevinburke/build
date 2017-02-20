@@ -92,7 +92,8 @@ func main() {
 		}
 	}
 	if *flagGithub {
-		if err := data.Reviewers.LoadGithub(gh); err != nil {
+		ctx, _ := context.WithTimeout(context.Background(), 2*time.Minute)
+		if err := data.Reviewers.LoadGithub(ctx, gh); err != nil {
 			log.Fatalf("failed to fetch commit information from Github: %v", err)
 		}
 	} else {
