@@ -41,7 +41,8 @@ type Corpus struct {
 	githubUsers  map[int64]*githubUser
 	githubRepos  []repoObj
 	// If true, log new commits
-	shouldLog bool
+	shouldLog      bool
+	MutationLogger MutationLogger
 }
 
 type repoObj struct {
@@ -49,11 +50,12 @@ type repoObj struct {
 	tokenFile string
 }
 
-func NewCorpus() *Corpus {
+func NewCorpus(logger MutationLogger) *Corpus {
 	return &Corpus{
-		githubIssues: make(map[githubRepo]map[int32]*githubIssue),
-		githubUsers:  make(map[int64]*githubUser),
-		githubRepos:  []repoObj{},
+		githubIssues:   make(map[githubRepo]map[int32]*githubIssue),
+		githubUsers:    make(map[int64]*githubUser),
+		githubRepos:    []repoObj{},
+		MutationLogger: logger,
 	}
 }
 
@@ -149,6 +151,15 @@ func (c *Corpus) processMutations(ctx context.Context, src MutationSource) error
 	}
 }
 
+func (c *Corpus) processMutation(m *maintpb.Mutation) {
+	c.mu.Lock()
+	c.processMutationLocked(m)
+	c.mu.Unlock()
+	if c.MutationLogger != nil {
+		c.MutationLogger.Log(m)
+	}
+}
+
 // c.mu must be held.
 func (c *Corpus) processMutationLocked(m *maintpb.Mutation) {
 	if im := m.GithubIssue; im != nil {
@@ -196,7 +207,7 @@ var errNoChanges = errors.New("No changes in this github.Issue")
 //
 // If newMutationFromIssue returns nil, the provided github.Issue is no newer
 // than the data we have in the corpus. ci may be nil.
-func newMutationFromIssue(ci *githubIssue, gi *github.Issue, rp githubRepo) *maintpb.GithubIssueMutation {
+func newMutationFromIssue(ci *githubIssue, gi *github.Issue, rp githubRepo) *maintpb.Mutation {
 	if gi == nil || gi.Number == nil {
 		panic(fmt.Sprintf("github issue with nil number: %#v", gi))
 	}
@@ -227,7 +238,7 @@ func newMutationFromIssue(ci *githubIssue, gi *github.Issue, rp githubRepo) *mai
 		if gi.Body != nil {
 			m.Body = *gi.Body
 		}
-		return m
+		return &maintpb.Mutation{GithubIssue: m}
 	}
 	if gi.UpdatedAt != nil {
 		if gi.UpdatedAt.Before(ci.Updated) {
@@ -243,7 +254,7 @@ func newMutationFromIssue(ci *githubIssue, gi *github.Issue, rp githubRepo) *mai
 	if gi.Body != nil && *gi.Body != ci.Body {
 		m.Body = *gi.Body
 	}
-	return m
+	return &maintpb.Mutation{m}
 }
 
 // getIssue finds an issue in the Corpus or returns nil, false if it is not
@@ -395,18 +406,18 @@ func (c *Corpus) pollGithub(ctx context.Context, rp githubRepo, ghc *github.Clie
 		if len(issues) == 0 {
 			break
 		}
-		c.mu.Lock()
 		for _, is := range issues {
 			fmt.Printf("issue %d: %s\n", is.ID, *is.Title)
+			c.mu.RLock()
 			gi, _ := c.getIssue(rp, int32(*is.Number))
+			c.mu.RUnlock()
 			mp := newMutationFromIssue(gi, is, rp)
 			if mp == nil {
 				keepGoing = false
 				break
 			}
-			c.processGithubIssueMutation(mp)
+			c.processMutation(mp)
 		}
-		c.mu.Unlock()
 		page++
 	}
 	return nil

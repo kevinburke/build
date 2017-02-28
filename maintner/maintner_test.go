@@ -136,14 +136,14 @@ func TestNewMutationsFromIssue(t *testing.T) {
 		State:     github.String("closed"),
 	}
 	is := newMutationFromIssue(nil, gh, githubRepo("golang/go"))
-	want := &maintpb.GithubIssueMutation{
+	want := &maintpb.Mutation{&maintpb.GithubIssueMutation{
 		Owner:   "golang",
 		Repo:    "go",
 		Number:  5,
 		Body:    "body of the issue",
 		Created: tp1,
 		Updated: tp2,
-	}
+	}}
 	if !reflect.DeepEqual(is, want) {
 		t.Errorf("issue mismatch\n got: %#v\nwant: %#v", is, want)
 	}

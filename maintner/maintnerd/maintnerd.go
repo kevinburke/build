@@ -38,7 +38,8 @@ var (
 func main() {
 	flag.Parse()
 	pairs := strings.Split(*watchGithub, ",")
-	corpus := maintner.NewCorpus()
+	logger := maintner.NewDiskMutationLogger("")
+	corpus := maintner.NewCorpus(logger)
 	for _, pair := range pairs {
 		splits := strings.SplitN(pair, "/", 2)
 		if len(splits) != 2 || splits[1] == "" {
