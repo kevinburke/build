@@ -146,6 +146,8 @@ func (c *Corpus) processMutations(ctx context.Context, src MutationSource) error
 			if !ok {
 				return nil
 			}
+			fmt.Printf("%#v\n", m)
+			fmt.Println("got mutation", m.GithubIssue.Owner, m.GithubIssue.Repo, m.GithubIssue.Number)
 			c.processMutationLocked(m)
 		}
 	}
