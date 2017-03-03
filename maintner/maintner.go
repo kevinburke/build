@@ -107,13 +107,15 @@ type githubUser struct {
 // githubIssue represents a github issue.
 // See https://developer.github.com/v3/issues/#get-a-single-issue
 type githubIssue struct {
-	ID      int64
-	Number  int32
-	Closed  bool
-	User    *githubUser
-	Created time.Time
-	Updated time.Time
-	Body    string
+	ID        int64
+	Number    int32
+	Closed    bool
+	User      *githubUser
+	Assignees []*githubUser
+	Created   time.Time
+	Updated   time.Time
+	Title     string
+	Body      string
 	// TODO Comments ...
 }
 
@@ -183,6 +185,7 @@ func (c *Corpus) repoKey(owner, repo string) githubRepo {
 	return githubRepo(owner + "/" + repo)
 }
 
+// c.mu must be held
 func (c *Corpus) getGithubUser(pu *maintpb.GithubUser) *githubUser {
 	if pu == nil {
 		return nil
@@ -206,6 +209,110 @@ func (c *Corpus) getGithubUser(pu *maintpb.GithubUser) *githubUser {
 
 var errNoChanges = errors.New("No changes in this github.Issue")
 
+// newGithubUserProto creates a GithubUser with the minimum diff between
+// existing and g. existing may be nil.
+func newGithubUserProto(existing *maintpb.GithubUser, g *github.User) *maintpb.GithubUser {
+	id := int64(g.GetID())
+	if existing == nil {
+		return &maintpb.GithubUser{
+			Id:    id,
+			Login: g.GetLogin(),
+		}
+	}
+	u := &maintpb.GithubUser{Id: id}
+	if login := g.GetLogin(); existing.Login != login {
+		u.Login = login
+	}
+	// Add more fields here
+	return u
+}
+
+// deletedAssignees returns an array of user ID's that are present in existing
+// but not present in new.
+func deletedAssignees(existing []*githubUser, new []*github.User) []int64 {
+	mp := make(map[int64]bool, len(existing))
+	for _, u := range existing {
+		mp[u.ID] = true
+	}
+	toDelete := []int64{}
+	for _, u := range new {
+		id := int64(u.GetID())
+		if _, ok := mp[id]; ok {
+			toDelete = append(toDelete, id)
+		}
+	}
+	return toDelete
+}
+
+// newAssignees returns an array of diffs between existing and new. New users in
+// new will be present in the returned array in their entirety. Modified users
+// will appear containing only the ID field and changed fields. Unmodified users
+// will not appear in the returned array.
+func newAssignees(existing []*githubUser, new []*github.User) []*maintpb.GithubUser {
+	mp := make(map[int64]*githubUser, len(existing))
+	for _, u := range existing {
+		mp[u.ID] = u
+	}
+	changes := []*maintpb.GithubUser{}
+	for _, u := range new {
+		if existingUser, ok := mp[int64(u.GetID())]; ok {
+			diffUser := &maintpb.GithubUser{
+				Id: int64(u.GetID()),
+			}
+			hasDiff := false
+			if login := u.GetLogin(); existingUser.Login != login {
+				diffUser.Login = login
+				hasDiff = true
+			}
+			// check more User fields for diffs here, as we add them to the proto
+
+			if hasDiff {
+				changes = append(changes, diffUser)
+			}
+		} else {
+			changes = append(changes, &maintpb.GithubUser{
+				Id:    int64(u.GetID()),
+				Login: u.GetLogin(),
+			})
+		}
+	}
+	return changes
+}
+
+// Modifies existing according to the instructions in new (adds or modifies
+// users), and toDelete (deletes them). c.mu must be held.
+func (c *Corpus) setAssigneesFromProto(existing []*githubUser, new []*maintpb.GithubUser, toDelete []int64) ([]*githubUser, bool) {
+	mp := make(map[int64]*githubUser)
+	for _, u := range existing {
+		mp[u.ID] = u
+	}
+	for _, u := range new {
+		if existingUser, ok := mp[u.Id]; ok {
+			if u.Login != "" {
+				existingUser.Login = u.Login
+			}
+			// TODO: add other fields here when we add them for user.
+		} else {
+			existing = append(existing, c.getGithubUser(u))
+		}
+	}
+	// IDs to delete, in descending order
+	idxsToDelete := []int{}
+	// this is quadratic but the number of assignees is very unlikely to exceed,
+	// say, 5.
+	for _, id := range toDelete {
+		for i, u := range existing {
+			if u.ID == id {
+				idxsToDelete = append([]int{i}, idxsToDelete...)
+			}
+		}
+	}
+	for _, idx := range idxsToDelete {
+		existing = append(existing[:idx], existing[idx+1:]...)
+	}
+	return existing, len(toDelete) > 0 || len(new) > 0
+}
+
 // newMutationFromIssue generates a GithubIssueMutation using the smallest
 // possible diff between ci (a corpus Issue) and gi (an external github issue).
 //
@@ -220,28 +327,32 @@ func newMutationFromIssue(ci *githubIssue, gi *github.Issue, rp githubRepo) *mai
 	m := &maintpb.GithubIssueMutation{
 		Owner:  owner,
 		Repo:   repo,
-		Number: int32(*gi.Number),
+		Number: int32(gi.GetNumber()),
 	}
 	if ci == nil {
 		// We don't know about this github issue, so populate all fields in one
 		// mutation.
 		if gi.CreatedAt != nil {
-			tproto, err := ptypes.TimestampProto(*gi.CreatedAt)
+			tproto, err := ptypes.TimestampProto(gi.GetCreatedAt())
 			if err != nil {
 				panic(err)
 			}
 			m.Created = tproto
 		}
 		if gi.UpdatedAt != nil {
-			tproto, err := ptypes.TimestampProto(*gi.UpdatedAt)
+			tproto, err := ptypes.TimestampProto(gi.GetUpdatedAt())
 			if err != nil {
 				panic(err)
 			}
 			m.Updated = tproto
 		}
-		if gi.Body != nil {
-			m.Body = *gi.Body
+		m.Body = gi.GetBody()
+		m.Title = gi.GetTitle()
+		if gi.User != nil {
+			m.User = newGithubUserProto(nil, gi.User)
 		}
+		m.Assignees = newAssignees(nil, gi.Assignees)
+		// no deleted assignees on first run
 		return &maintpb.Mutation{GithubIssue: m}
 	}
 	if gi.UpdatedAt != nil {
@@ -249,15 +360,23 @@ func newMutationFromIssue(ci *githubIssue, gi *github.Issue, rp githubRepo) *mai
 			// This data is stale, ignore it.
 			return nil
 		}
-		tproto, err := ptypes.TimestampProto(*gi.UpdatedAt)
+		tproto, err := ptypes.TimestampProto(gi.GetUpdatedAt())
 		if err != nil {
 			panic(err)
 		}
 		m.Updated = tproto
 	}
-	if gi.Body != nil && *gi.Body != ci.Body {
-		m.Body = *gi.Body
+	if body := gi.GetBody(); body != ci.Body {
+		m.Body = body
 	}
+	if title := gi.GetTitle(); title != ci.Title {
+		m.Title = title
+	}
+	if gi.User != nil {
+		m.User = newGithubUserProto(m.User, gi.User)
+	}
+	m.Assignees = newAssignees(ci.Assignees, gi.Assignees)
+	m.DeletedAssignees = deletedAssignees(ci.Assignees, gi.Assignees)
 	return &maintpb.Mutation{GithubIssue: m}
 }
 
@@ -303,9 +422,9 @@ func (c *Corpus) processGithubIssueMutation(m *maintpb.GithubIssueMutation) (cha
 			panic(err)
 		}
 		gi = &githubIssue{
-			Number:  m.Number,
-			User:    c.getGithubUser(m.User),
-			Created: created,
+			Number:    m.Number,
+			Created:   created,
+			Assignees: []*githubUser{},
 		}
 		issueMap[m.Number] = gi
 		changed = true
@@ -325,9 +444,20 @@ func (c *Corpus) processGithubIssueMutation(m *maintpb.GithubIssueMutation) (cha
 		gi.Updated = updated
 		changed = changed || updated.After(gi.Updated)
 	}
+	if m.User != nil {
+		gi.User = c.getGithubUser(m.User)
+	}
+
+	gi.Assignees, ok = c.setAssigneesFromProto(gi.Assignees, m.Assignees, m.DeletedAssignees)
+	changed = changed || ok
+
 	if m.Body != "" {
 		gi.Body = m.Body
 		changed = changed || m.Body != gi.Body
+	}
+	if m.Title != "" {
+		gi.Title = m.Title
+		changed = changed || m.Title != gi.Title
 	}
 	// ignoring Created since it *should* never update
 	return changed
@@ -419,13 +549,13 @@ func (c *Corpus) pollGithub(ctx context.Context, rp githubRepo, ghc *github.Clie
 			break
 		}
 		for _, is := range issues {
-			gi, _ := c.getIssue(rp, int32(*is.Number))
+			gi, _ := c.getIssue(rp, int32(is.GetNumber()))
 			mp := newMutationFromIssue(gi, is, rp)
 			if mp == nil {
 				keepGoing = false
 				break
 			}
-			fmt.Printf("modifying %s, issue %d: %s\n", rp, *is.Number, *is.Title)
+			fmt.Printf("modifying %s, issue %d: %s\n", rp, is.GetNumber(), is.GetTitle())
 			c.processMutation(mp)
 		}
 		page++

@@ -15,6 +15,15 @@ import (
 	"golang.org/x/build/maintner/maintpb"
 )
 
+var u1 = &githubUser{
+	Login: "gopherbot",
+	ID:    100,
+}
+var u2 = &githubUser{
+	Login: "kevinburke",
+	ID:    101,
+}
+
 type dummyMutationLogger struct {
 	Mutations []*maintpb.Mutation
 }
@@ -58,18 +67,16 @@ func init() {
 func TestProcessMutation_Github_NewIssue(t *testing.T) {
 	c := NewCorpus(&dummyMutationLogger{})
 	c.githubUsers = map[int64]*githubUser{
-		100: &githubUser{
-			Login: "gopherbot",
-			ID:    100,
-		},
+		u1.ID: u1,
 	}
 	c.githubIssues = map[githubRepo]map[int32]*githubIssue{
 		"golang/go": map[int32]*githubIssue{
 			3: &githubIssue{
-				Number:  3,
-				User:    &githubUser{ID: 100, Login: "gopherbot"},
-				Body:    "some body",
-				Created: t1,
+				Number:    3,
+				User:      u1,
+				Body:      "some body",
+				Created:   t1,
+				Assignees: []*githubUser{},
 			},
 		},
 	}
@@ -93,19 +100,17 @@ func TestProcessMutation_OldIssue(t *testing.T) {
 	// issue.
 	c := NewCorpus(&dummyMutationLogger{})
 	c.githubUsers = map[int64]*githubUser{
-		100: &githubUser{
-			Login: "gopherbot",
-			ID:    100,
-		},
+		u1.ID: u1,
 	}
 	c.githubIssues = map[githubRepo]map[int32]*githubIssue{
 		"golang/go": map[int32]*githubIssue{
 			3: &githubIssue{
-				Number:  3,
-				User:    &githubUser{ID: 100, Login: "gopherbot"},
-				Body:    "some body",
-				Created: t2,
-				Updated: t2,
+				Number:    3,
+				User:      u1,
+				Body:      "some body",
+				Created:   t2,
+				Updated:   t2,
+				Assignees: []*githubUser{},
 			},
 		},
 	}
@@ -149,15 +154,57 @@ func TestNewMutationsFromIssue(t *testing.T) {
 	}
 	is := newMutationFromIssue(nil, gh, githubRepo("golang/go"))
 	want := &maintpb.Mutation{GithubIssue: &maintpb.GithubIssueMutation{
-		Owner:   "golang",
-		Repo:    "go",
-		Number:  5,
-		Body:    "body of the issue",
-		Created: tp1,
-		Updated: tp2,
+		Owner:     "golang",
+		Repo:      "go",
+		Number:    5,
+		Body:      "body of the issue",
+		Created:   tp1,
+		Updated:   tp2,
+		Assignees: []*maintpb.GithubUser{},
 	}}
 	if !reflect.DeepEqual(is, want) {
 		t.Errorf("issue mismatch\n got: %#v\nwant: %#v", is, want)
+	}
+}
+
+func TestNewAssigneesNil(t *testing.T) {
+	users := []*github.User{
+		&github.User{Login: github.String("foo"), ID: github.Int(3)},
+	}
+	got := newAssignees(nil, users)
+	want := []*maintpb.GithubUser{&maintpb.GithubUser{
+		Id:    3,
+		Login: "foo",
+	}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("assignee mismatch\n got: %#v\nwant: %#v", got, want)
+	}
+}
+
+func TestSetAssigneesDeletes(t *testing.T) {
+	c := NewCorpus(&dummyMutationLogger{})
+	c.githubUsers = map[int64]*githubUser{
+		u1.ID: u1,
+	}
+	assignees := []*githubUser{u1, u2}
+	c.githubIssues = map[githubRepo]map[int32]*githubIssue{
+		"golang/go": map[int32]*githubIssue{
+			3: &githubIssue{
+				Number:    3,
+				User:      u1,
+				Body:      "some body",
+				Created:   t2,
+				Updated:   t2,
+				Assignees: assignees,
+			},
+		},
+	}
+	users, ok := c.setAssigneesFromProto(assignees, nil, []int64{u1.ID})
+	if !ok {
+		t.Errorf("expected setAssigneesFromProto to report change, got false")
+	}
+	if len(users) != 1 || users[0].ID != u2.ID {
+		t.Errorf("expected u1 to be deleted, got %v", users)
 	}
 }
 
