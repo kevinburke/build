@@ -1,0 +1,9 @@
+# Update with
+#	google_appengine/appcfg.py [-V dev-test] update .
+#
+# Using -V dev-test will run as dev-test.dev.golang.org.
+#
+# More info: https://cloud.google.com/appengine/docs/flexible/go/quickstart
+
+runtime: go
+env: flex
