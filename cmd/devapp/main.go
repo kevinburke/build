@@ -13,6 +13,9 @@
 // Github issues and Gerrit CL's are stored in memory in the running process.
 // To trigger an initial download, visit http://localhost:8081/update or
 // http://localhost:8081/update/stats in your browser.
+
+// +build !appenginevm
+
 package main
 
 import (
@@ -30,9 +33,8 @@ func init() {
 	flag.Usage = func() {
 		os.Stderr.WriteString(`usage: devapp [-port=port]
 
-Devapp generates the dashboard that powers dev.golang.org.
-`)
-		os.Exit(2)
+	Devapp generates the dashboard that powers dev.golang.org.
+	`)
 	}
 }
 

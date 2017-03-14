@@ -69,7 +69,7 @@ func logFn(ctx context.Context, w io.Writer) func(string, ...interface{}) {
 
 type Page struct {
 	// Content is the complete HTML of the page.
-	Content []byte
+	Content []byte `datastore:"content,noindex"`
 }
 
 func servePage(w http.ResponseWriter, r *http.Request, page string) {
@@ -152,4 +152,26 @@ func update(ctx context.Context, w http.ResponseWriter, _ *http.Request) error {
 		}
 	}
 	return writeCache(ctx, "gzdata", &data)
+}
+
+// POST /setToken
+//
+// Store a github token in the database, so we can use it for API calls.
+// Necessary because the only available configuration method is the app.yaml
+// file, which we want to check in, and can't store secrets.
+func setTokenHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		w.Header().Set("Allow", "POST")
+		http.Error(w, "Method not allowed", 405)
+		return
+	}
+	ctx := r.Context()
+	r.ParseForm()
+	if value := r.Form.Get("value"); value != "" {
+		var token Cache
+		token.Value = []byte(value)
+		if err := putCache(ctx, "github-token", &token); err != nil {
+			http.Error(w, err.Error(), 500)
+		}
+	}
 }

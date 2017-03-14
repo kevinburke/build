@@ -17,7 +17,7 @@ type Cache struct {
 	// Value contains a gzipped gob'd serialization of the object
 	// to be cached. It must be []byte to avail ourselves of the
 	// datastore's 1 MB size limit.
-	Value []byte
+	Value []byte `datastore:"value,noindex"`
 }
 
 func unpackCache(cache *Cache, data interface{}) error {

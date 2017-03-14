@@ -18,9 +18,9 @@ import (
 	"golang.org/x/net/context"
 )
 
-var onAppengine = false
-
 type logger interface {
+	// This needs to be x/net/context because the app engine client still runs
+	// on Go 1.6.
 	Infof(context.Context, string, ...interface{})
 	Errorf(context.Context, string, ...interface{})
 	Criticalf(context.Context, string, ...interface{})
