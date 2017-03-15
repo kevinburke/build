@@ -1,41 +1,68 @@
-// Copyright 2015 The Go Authors. All rights reserved.
+// Copyright 2017 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// +build appengine
+// This file gets built on App Engine Flex.
+
+// +build appenginevm
 
 package devapp
 
 import (
+	"fmt"
 	"net/http"
 
+	"cloud.google.com/go/logging"
 	"golang.org/x/net/context"
 	"google.golang.org/appengine"
 	"google.golang.org/appengine/datastore"
-	applog "google.golang.org/appengine/log"
 	"google.golang.org/appengine/urlfetch"
 	"google.golang.org/appengine/user"
 )
 
+var lg *logging.Logger
+
 func init() {
 	onAppengine = !appengine.IsDevAppServer()
 	log = &appengineLogger{}
+	client, err := logging.NewClient(context.Background(), "devapp")
+	if err == nil {
+		lg = client.Logger("log")
+	}
 
 	http.HandleFunc("/setToken", setTokenHandler)
 }
 
 type appengineLogger struct{}
 
-func (a *appengineLogger) Infof(ctx context.Context, format string, args ...interface{}) {
-	applog.Infof(ctx, format, args...)
+func (a *appengineLogger) Infof(_ context.Context, format string, args ...interface{}) {
+	if lg == nil {
+		return
+	}
+	lg.Log(logging.Entry{
+		Severity: logging.Info,
+		Payload:  fmt.Sprintf(format, args...),
+	})
 }
 
-func (a *appengineLogger) Errorf(ctx context.Context, format string, args ...interface{}) {
-	applog.Errorf(ctx, format, args...)
+func (a *appengineLogger) Errorf(_ context.Context, format string, args ...interface{}) {
+	if lg == nil {
+		return
+	}
+	lg.Log(logging.Entry{
+		Severity: logging.Error,
+		Payload:  fmt.Sprintf(format, args...),
+	})
 }
 
 func (a *appengineLogger) Criticalf(ctx context.Context, format string, args ...interface{}) {
-	applog.Criticalf(ctx, format, args...)
+	if lg == nil {
+		return
+	}
+	lg.LogSync(ctx, logging.Entry{
+		Severity: logging.Critical,
+		Payload:  fmt.Sprintf(format, args...),
+	})
 }
 
 func newTransport(ctx context.Context) http.RoundTripper {
@@ -110,7 +137,12 @@ func getToken(ctx context.Context) (string, error) {
 
 // Store a token in the database
 func setTokenHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := appengine.NewContext(r)
+	if r.Method != "POST" {
+		w.Header().Set("Allow", "POST")
+		http.Error(w, "Method not allowed", 405)
+		return
+	}
+	ctx := r.Context()
 	r.ParseForm()
 	if value := r.Form.Get("value"); value != "" {
 		var token Cache
@@ -122,5 +154,5 @@ func setTokenHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func getContext(r *http.Request) context.Context {
-	return appengine.NewContext(r)
+	return r.Context()
 }
