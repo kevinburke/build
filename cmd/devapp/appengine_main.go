@@ -5,7 +5,7 @@
 // Build for running on app engine flex, following the instructions set here:
 // https://godoc.org/google.golang.org/appengine#Main
 
-// +build appengine
+// +build appenginevm
 
 package main
 

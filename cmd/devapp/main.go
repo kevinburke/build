@@ -14,7 +14,7 @@
 // To trigger an initial download, visit http://localhost:8081/update or
 // http://localhost:8081/update/stats in your browser.
 
-// +build !appengine
+// +build !appenginevm
 
 package main
 
