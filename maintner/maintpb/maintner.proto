@@ -14,6 +14,7 @@ message Mutation {
   GithubMutation github = 3; // labels, milestones (not issue-specific)
 
   GitMutation git = 2;
+  GerritMutation gerrit = 4;
 }
 
 message GithubMutation {
@@ -197,4 +198,16 @@ message GitDiffTreeFile {
   int64  added = 2;
   int64  deleted = 3;
   bool   binary = 4;
+}
+
+// GerritMutation represents an individual Gerrit CL.
+message GerritMutation {
+  string url    = 1; // "https://go-review.googlesource.com/build"
+  int32 number  = 2; // the CL number
+  string sha1   = 3; // Hash of the Gerrit meta remote for the commit
+  string status = 4; // "merged", "abandoned", ""
+  string author = 5; // "Kevin Burke <kev@inburke.com>"
+
+  // timestamp that comes after the author's name in a commit line.
+  google.protobuf.Timestamp author_time = 6; 
 }

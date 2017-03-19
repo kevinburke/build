@@ -24,6 +24,7 @@ import (
 
 type gitHash interface {
 	String() string
+	Equal(gitHash) bool
 	Less(gitHash) bool
 }
 
@@ -32,6 +33,14 @@ type gitHash interface {
 type gitSHA1 [20]byte
 
 func (h gitSHA1) String() string { return fmt.Sprintf("%x", h[:]) }
+func (h gitSHA1) Equal(h2 gitHash) bool {
+	switch h2 := h2.(type) {
+	case gitSHA1:
+		return bytes.Compare(h[:], h2[:]) == 0
+	default:
+		return false
+	}
+}
 func (h gitSHA1) Less(h2 gitHash) bool {
 	switch h2 := h2.(type) {
 	case gitSHA1:
