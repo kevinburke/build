@@ -103,6 +103,7 @@ func push(args []string) error {
 	// smaller upload payload. This is important when working from
 	// home with a slower network connection to GCE. (upload a few
 	// KB instead of 10-40 MB)
+	_ = haveGo
 
 	type fileInfo struct {
 		fi   os.FileInfo
