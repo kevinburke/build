@@ -5,7 +5,7 @@
 FROM golang:1.8-wheezy
 LABEL maintainer "golang-dev@googlegroups.com"
 
-RUN go get -d cloud.google.com/go/compute/metadata
+RUN go get -d -v cloud.google.com/go/compute/metadata
 RUN cd /go/src/cloud.google.com/go/compute/metadata && git reset --hard cd0da878c66091060d2e7403abd62192b3e387e0
 
 RUN go get -d golang.org/x/time/rate
@@ -37,6 +37,6 @@ RUN cd /go/src/google.golang.org/grpc && git reset --hard 50955793b0183f9de69bd7
 
 COPY . /go/src/golang.org/x/build/
 
-RUN go install golang.org/x/build/cmd/coordinator
+RUN go install -v golang.org/x/build/cmd/coordinator
 
 ENTRYPOINT ["/go/bin/coordinator"]
