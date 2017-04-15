@@ -3,7 +3,7 @@
 # license that can be found in the LICENSE file.
 
 FROM golang:1.8-wheezy
-LABEL maintainer "golang-dev@googlegroups.com"
+LABEL maintainer "golang-dev-v3@googlegroups.com"
 
 # You can verify this list with prdeps:
 # go get github.com/davecheney/prdeps 
