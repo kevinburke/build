@@ -312,6 +312,20 @@ func (p *reverseBuildletPool) cleanedBuildlet(b *buildlet.Client, lg logger) (*b
 	return b, nil
 }
 
+// friendlyDuration returns a duration with the insignificant bits rounded off.
+func friendlyDuration(d time.Duration) string {
+	if d > 10*time.Second {
+		d2 := (d / (100 * time.Millisecond)) * (100 * time.Millisecond)
+		return d2.String()
+	}
+	if d > time.Second {
+		d2 := (d / (10 * time.Millisecond)) * (10 * time.Millisecond)
+		return d2.String()
+	}
+	d2 := (d / (100 * time.Microsecond)) * (100 * time.Microsecond)
+	return d2.String()
+}
+
 func (p *reverseBuildletPool) WriteHTMLStatus(w io.Writer) {
 	// total maps from a host type to the number of machines which are
 	// capable of that role.
@@ -328,14 +342,14 @@ func (p *reverseBuildletPool) WriteHTMLStatus(w io.Writer) {
 		if b.inUse {
 			machStatus = "working"
 		}
-		fmt.Fprintf(&buf, "<li>%s (%s) version %s, %s: connected %v, %s for %v</li>\n",
+		fmt.Fprintf(&buf, "<li>%s (%s) version %s, %s: connected %s, %s for %s</li>\n",
 			b.hostname,
 			b.conn.RemoteAddr(),
 			b.version,
 			b.hostType,
-			time.Since(b.regTime),
+			friendlyDuration(time.Since(b.regTime)),
 			machStatus,
-			time.Since(b.inUseTime))
+			friendlyDuration(time.Since(b.inUseTime)))
 		total[b.hostType]++
 		if b.inUse && !b.inHealthCheck {
 			inUse[b.hostType]++

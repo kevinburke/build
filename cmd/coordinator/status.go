@@ -146,65 +146,74 @@ var statusTmpl = template.Must(template.New("status").Parse(`
 <html>
 <head><link rel="stylesheet" href="/style.css"/><title>Go Farmer</title></head>
 <body>
-<header>
-	<h1>Go Build Coordinator</h1>
-	<nav>
-		<a href="https://build.golang.org">Dashboard</a>
-		<a href="/builders">Builders</a>
-	</nav>
-	<div class="clear"></div>
+<header id="topbar">
+	<div class="header-container">
+		<div class="top-heading">
+			<h1>Go Build Coordinator</h1>
+		</div>
+		<ul id="menu" class="clearfix">
+			<li class="button">
+				<a href="https://build.golang.org">Dashboard</a>
+			</li>
+			<li class="button">
+				<a href="/builders">Builders</a>
+			</li>
+		</nav>
+	</div>
 </header>
 
+<div class="container">
 <h2>Running</h2>
 <p>{{printf "%d" .Total}} total builds; {{printf "%d" .ActiveBuilds}} active. Uptime {{printf "%s" .Uptime}}. Version {{.Version}}.
 
-<h2 id=trybots><a href='#trybots'>🔗</a> Active Trybot Runs</h2>
+<h2 id=trybots>Active Trybot Runs <a href='#trybots'>¶</a></h2>
 {{- if .TrybotsErr}}
 <b>trybots disabled:</b>: {{.TrybotsErr}}
 {{else}}
 {{.Trybots}}
 {{end}}
 
-<h2 id=remote><a href='#remote'>🔗</a> Remote buildlets</h3>
+<h2 id=remote>Remote buildlets <a href='#remote'>¶</a></h3>
 {{.RemoteBuildlets}}
 
-<h2 id=pools><a href='#pools'>🔗</a> Buildlet pools</h2>
+<h2 id=pools>Buildlet pools <a href='#pools'>¶</a></h2>
 <ul>
 <li>{{.GCEPoolStatus}}</li>
 <li>{{.KubePoolStatus}}</li>
 <li>{{.ReversePoolStatus}}</li>
 </ul>
 
-<h2 id=active><a href='#active'>🔗</a> Active builds</h2>
+<h2 id=active>Active builds <a href='#active'>¶</a></h2>
 <ul>
 {{range .Active}}
 <li><pre>{{.HTMLStatusLine}}</pre></li>
 {{end}}
 </ul>
 
-<h2 id=pending><a href='#pending'>🔗</a> Pending builds</h2>
+<h2 id=pending>Pending builds <a href='#pending'>¶</a></h2>
 <ul>
 {{range .Pending}}
 <li><pre>{{.HTMLStatusLine}}</pre></li>
 {{end}}
 </ul>
 
-<h2 id=completed><a href='#completed'>🔗</a> Recently completed</h2>
+<h2 id=completed>Recently completed <a href='#completed'>¶</a></h2>
 <ul>
 {{range .Recent}}
 <li><span>{{.HTMLStatusLine_done}}</span></li>
 {{end}}
 </ul>
 
-<h2 id=disk><a href='#disk'>🔗</a> Disk Space</h2>
+<h2 id=disk>Disk Space <a href='#disk'>¶</a></h2>
 <pre>{{.DiskFree}}</pre>
 
-<h2 id=disk><a href='#fd'>🔗</a> File Descriptors</h2>
+<h2 id=disk>File Descriptors <a href='#fd'>¶</a></h2>
 <p>{{.NumFD}}</p>
 
-<h2 id=disk><a href='#goroutines'>🔗</a> Goroutines</h2>
+<h2 id=disk>Goroutines <a href='#goroutines'>¶</a></h2>
 <p>{{.NumGoroutine}} <a href='/debug/goroutines'>goroutines</a></p>
 
+</div>
 </body>
 </html>
 `))
@@ -218,45 +227,80 @@ const styleCSS = `
 body {
 	font-family: sans-serif;
 	color: #222;
-	padding: 10px;
 	margin: 0;
 }
 
-h1, h2 { color: #375EAB; }
-h1 { font-size: 24px; }
-h2 { font-size: 20px; }
-
 pre {
-	font-family: monospace;
+	font-family: Menlo, Consolas, monospace;
 	font-size: 9pt;
 }
 
-header {
-	margin: -10px -10px 0 -10px;
-	padding: 10px 10px;
-	background: #E0EBF5;
+h2 {
+	font-size: 20px;
+	color: #480048;
+	background-color: #ddd3ee;
+	line-height: 1.25;
+	font-weight: normal;
+	padding: 8px;
+	margin: 20px 0 20px;
 }
-header a { color: #222; }
-header h1 {
-	display: inline;
+
+h2 a {
+	text-decoration: none;
+	color: #480048;
+}
+
+h2 a:hover {
+	cursor: pointer;
+	text-decoration: underline;
+}
+
+.header-container {
+	max-width: 950px;
+	margin: 0 auto;
+}
+
+#topbar {
+	background-color: #ddd3ee;
+	height: 64px;
+}
+.top-heading {
+	float: left;
+}
+#topbar h1 {
+	font-size: 20px;
+	font-weight: normal;
 	margin: 0;
-	padding-top: 5px;
+	color: #222;
+	line-height: 1.25;
+	padding: 21px 0;
 }
-header nav {
-	display: inline-block;
-	margin-left: 20px;
+#menu {
+	float: left;
+	padding: 10px;
+	margin-left: 100px;
 }
-header nav a {
-	display: inline-block;
+
+.button {
+	float: left;
+	list-style-type: none;
+}
+
+#menu a {
 	padding: 10px;
 	margin: 0;
 	margin-right: 5px;
 	color: white;
-	background: #375EAB;
+	background: #480048;
 	text-decoration: none;
 	font-size: 16px;
-	border: 1px solid #375EAB;
+	border: 1px solid #480048;
 	border-radius: 5px;
+}
+
+.container {
+	max-width: 950px;
+	margin: 0 auto;
 }
 
 table {
