@@ -166,6 +166,35 @@ type GerritCL struct {
 
 	// GitHubIssueRefs are parsed references to GitHub issues.
 	GitHubIssueRefs []GitHubIssueRef
+
+	Comments []*GerritComment
+}
+
+// Side is a side a comment is added on.
+type CommentSide string
+
+const SideRevision CommentSide = "REVISION"
+const SideParent CommentSide = "PARENT"
+
+type GerritComment struct {
+	PatchSet  int16
+	ID        string
+	Path      string
+	Side      CommentSide
+	Line      int32
+	Range     *GerritCommentRange
+	InReplyTo string
+	Message   string
+	Updated   time.Time
+	Author    *GitPerson
+	Tag       string
+}
+
+type GerritCommentRange struct {
+	StartLine      int32
+	EndLine        int32
+	StartCharacter int16
+	EndCharacter   int16
 }
 
 // References reports whether cl includes a commit message reference
