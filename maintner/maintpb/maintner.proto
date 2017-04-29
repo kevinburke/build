@@ -210,6 +210,8 @@ message GerritMutation {
 
   // git refs to update.
   repeated GitRef refs = 3;
+
+  repeated GerritComment comments = 4;
 }
 
 message GitRef {
@@ -223,4 +225,16 @@ message GitRef {
 
   // sha1 is the lowercase hex sha1
   string sha1 = 2;
+}
+
+message GerritComment {
+  // TODO double check that these make sense.
+  int32 patch_set = 1;
+  string id = 2;
+  string path = 3;
+  string side = 4;
+  int32 line = 5;
+  string message = 6;
+  google.protobuf.Timestamp updated = 7; // only needed on new issues
+  string person = 8;
 }
