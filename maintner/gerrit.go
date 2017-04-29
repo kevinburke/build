@@ -13,6 +13,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/url"
@@ -302,9 +303,8 @@ var statusIndicator = "\n    Status: "
 //     git push origin HEAD:refs/drafts/master
 var statuses = []string{"merged", "abandoned", "draft", "new"}
 
-// getGerritStatus takes a current and previous commit, and returns a Gerrit
-// status, or the empty string to indicate the status did not change between the
-// two commits.
+// getGerritStatus returns a Gerrit status for a commit, or the empty string to
+// indicate the commit did not show a status.
 //
 // getGerritStatus relies on the Gerrit code review convention of amending
 // the meta commit to include the current status of the CL. The Gerrit search
@@ -313,34 +313,54 @@ var statuses = []string{"merged", "abandoned", "draft", "new"}
 // returns only "NEW", "DRAFT", "ABANDONED", "MERGED". Gerrit attaches "draft",
 // "abandoned", "new", and "merged" statuses to some meta commits; you may have
 // to search the current meta commit's parents to find the last good commit.
-//
-// Corpus.mu must be held.
-func (gp *GerritProject) getGerritStatus(currentMeta, oldMeta *GitCommit) string {
-	commit := currentMeta
-	c := gp.gerrit.c
-	for {
-		idx := strings.Index(commit.Msg, statusIndicator)
-		if idx > -1 {
-			off := idx + len(statusIndicator)
-			for _, status := range statuses {
-				if strings.HasPrefix(commit.Msg[off:], status) {
-					return status
-				}
-			}
-		}
-		if len(commit.Parents) == 0 {
-			return "new"
-		}
-		parentHash := commit.Parents[0] // meta tree has no merge commits
-		commit = c.gitCommit[parentHash]
-		if commit == nil {
-			gp.logf("getGerritStatus: did not find parent commit %s", parentHash)
-			return "new"
-		}
-		if oldMeta != nil && commit.Hash == oldMeta.Hash {
-			return ""
+func getGerritStatus(commit *GitCommit) string {
+	idx := strings.Index(commit.Msg, statusIndicator)
+	if idx == -1 {
+		return ""
+	}
+	off := idx + len(statusIndicator)
+	for _, status := range statuses {
+		if strings.HasPrefix(commit.Msg[off:], status) {
+			return status
 		}
 	}
+	return ""
+}
+
+var errStopIteration = errors.New("stop iteration")
+var errTooManyParents = errors.New("maintner: too many commit parents")
+
+// foreachCommitParent walks a commit's parents, calling f for each commit until
+// an error is returned from f or a commit has no parent.
+//
+// foreachCommitParent returns tooManyParents (and stops processing) if a commit
+// has more than one parent.
+//
+// Corpus.mu must be held.
+func (gp *GerritProject) foreachCommitParent(hash GitHash, f func(*GitCommit) error) error {
+	c := gp.gerrit.c
+	commit := c.gitCommit[hash]
+	for {
+		if commit == nil {
+			return nil
+		}
+		if err := f(commit); err != nil {
+			return err
+		}
+		if len(commit.Parents) > 1 {
+			return errTooManyParents
+		}
+		parentHash := commit.Parents[0]
+		commit = c.gitCommit[parentHash]
+	}
+}
+
+// getGerritComment parses a Gerrit comment from the given commit or returns nil
+// if there wasn't one.
+//
+// Corpus.mu must be held
+func (gp *GerritProject) getGerritComment(commit *GitCommit) *GerritComment {
+	return nil
 }
 
 // called with c.mu Locked
@@ -369,9 +389,25 @@ func (gp *GerritProject) processMutation(gm *maintpb.GerritMutation) {
 		if clv.Version == 0 {
 			oldMeta := cl.Meta
 			cl.Meta = gc
-			if status := gp.getGerritStatus(cl.Meta, oldMeta); status != "" {
-				cl.Status = status
-			}
+			foundStatus := "new"
+			comments := make([]*GerritComment, 0)
+			gp.foreachCommitParent(cl.Meta.Hash, func(gc *GitCommit) error {
+				if status := getGerritStatus(gc); status != "" {
+					foundStatus = status
+					return errStopIteration
+				}
+				if comment := gp.getGerritComment(gc); comment != nil {
+					comments = append(comments, nil)
+					copy(comments[1:], comments[:])
+					comments[0] = comment
+				}
+				if oldMeta != nil && gc.Hash == oldMeta.Hash {
+					return errStopIteration
+				}
+				return nil
+			})
+			cl.Status = foundStatus
+			cl.Comments = append(cl.Comments, comments...)
 		} else {
 			cl.Commit = gc
 			cl.Version = clv.Version
@@ -426,8 +462,9 @@ func (gp *GerritProject) getOrCreateCL(num int32) *GerritCL {
 		return cl
 	}
 	cl = &GerritCL{
-		Project: gp,
-		Number:  num,
+		Project:  gp,
+		Number:   num,
+		Comments: make([]*GerritComment, 0),
 	}
 	gp.cls[num] = cl
 	return cl
