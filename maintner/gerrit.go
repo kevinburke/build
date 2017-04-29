@@ -358,7 +358,7 @@ func (gp *GerritProject) foreachCommitParent(hash GitHash, f func(*GitCommit) er
 // getGerritComment parses a Gerrit comment from the given commit or returns nil
 // if there wasn't one.
 //
-// Corpus.mu must be held
+// Corpus.mu must be held.
 func (gp *GerritProject) getGerritComment(commit *GitCommit) *GerritComment {
 	return nil
 }
