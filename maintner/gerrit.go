@@ -169,6 +169,7 @@ type GerritCL struct {
 	GitHubIssueRefs []GitHubIssueRef
 
 	Comments []*GerritComment
+	Messages []*GerritMessage
 }
 
 // Side is a side a comment is added on.
@@ -189,6 +190,15 @@ type GerritComment struct {
 	Updated   time.Time
 	Author    *GitPerson
 	Tag       string
+}
+
+type GerritMessage struct {
+	PatchSet int16
+	// Raw message contents from Gerrit.
+	Message string
+	Date    time.Time
+
+	// TODO author id etc.
 }
 
 type GerritCommentRange struct {
@@ -333,7 +343,7 @@ var errTooManyParents = errors.New("maintner: too many commit parents")
 // foreachCommitParent walks a commit's parents, calling f for each commit until
 // an error is returned from f or a commit has no parent.
 //
-// foreachCommitParent returns tooManyParents (and stops processing) if a commit
+// foreachCommitParent returns errTooManyParents (and stops processing) if a commit
 // has more than one parent.
 //
 // Corpus.mu must be held.
@@ -355,11 +365,13 @@ func (gp *GerritProject) foreachCommitParent(hash GitHash, f func(*GitCommit) er
 	}
 }
 
-// getGerritComment parses a Gerrit comment from the given commit or returns nil
+// getGerritMessage parses a Gerrit comment from the given commit or returns nil
 // if there wasn't one.
 //
 // Corpus.mu must be held.
-func (gp *GerritProject) getGerritComment(commit *GitCommit) *GerritComment {
+func (gp *GerritProject) getGerritMessage(commit *GitCommit) *GerritMessage {
+	fmt.Printf(`"%s"
+`, commit.Msg)
 	return nil
 }
 
@@ -390,16 +402,16 @@ func (gp *GerritProject) processMutation(gm *maintpb.GerritMutation) {
 			oldMeta := cl.Meta
 			cl.Meta = gc
 			foundStatus := "new"
-			comments := make([]*GerritComment, 0)
+			messages := make([]*GerritMessage, 0)
 			gp.foreachCommitParent(cl.Meta.Hash, func(gc *GitCommit) error {
 				if status := getGerritStatus(gc); status != "" {
 					foundStatus = status
 					return errStopIteration
 				}
-				if comment := gp.getGerritComment(gc); comment != nil {
-					comments = append(comments, nil)
-					copy(comments[1:], comments[:])
-					comments[0] = comment
+				if message := gp.getGerritMessage(gc); message != nil {
+					messages = append(messages, nil)
+					copy(messages[1:], messages[:])
+					messages[0] = message
 				}
 				if oldMeta != nil && gc.Hash == oldMeta.Hash {
 					return errStopIteration
@@ -407,7 +419,7 @@ func (gp *GerritProject) processMutation(gm *maintpb.GerritMutation) {
 				return nil
 			})
 			cl.Status = foundStatus
-			cl.Comments = append(cl.Comments, comments...)
+			cl.Messages = append(cl.Messages, messages...)
 		} else {
 			cl.Commit = gc
 			cl.Version = clv.Version

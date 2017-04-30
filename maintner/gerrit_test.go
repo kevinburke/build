@@ -48,3 +48,23 @@ func TestGetGerritStatus(t *testing.T) {
 		}
 	}
 }
+
+var messageTests = []struct {
+	in  string
+	out string
+}{
+	{`Update patch set 1
+
+Patch Set 1: Code-Review+2
+
+Just to confirm, "go test" will consider an empty test file to be passing?
+
+Patch-set: 1
+Reviewer: Quentin Smith <13020@62eb7196-b449-3ce5-99f1-c037f21e1705>
+Label: Code-Review=+2
+`, `Just to confirm, "go test" will consider an empty test file to be passing?`},
+}
+
+func TestGetGerritMessage(t *testing.T) {
+	t.Fail()
+}

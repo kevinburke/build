@@ -238,3 +238,14 @@ message GerritComment {
   google.protobuf.Timestamp updated = 7; // only needed on new issues
   string person = 8;
 }
+
+// A GerritMessage is a reply left on a CL (not on a specific line of the diff).
+// The message is not very well formatted. To view these, either check out a
+// meta commit and run a git log, or view the output from an API request like
+// https://go-review.googlesource.com/changes/42180\?o\=MESSAGES.
+message GerritMessage {
+  string message = 1;
+  google.protobuf.Timestamp date = 2;
+  int32 author_id = 3;
+  int32 patch_set = 4;
+}
