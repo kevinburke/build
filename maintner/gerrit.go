@@ -356,6 +356,9 @@ func (gp *GerritProject) foreachCommitParent(hash GitHash, f func(*GitCommit) er
 		if err := f(commit); err != nil {
 			return err
 		}
+		if commit.Parents == nil || len(commit.Parents) == 0 {
+			return nil
+		}
 		if len(commit.Parents) > 1 {
 			return errTooManyParents
 		}
@@ -369,9 +372,13 @@ func (gp *GerritProject) foreachCommitParent(hash GitHash, f func(*GitCommit) er
 //
 // Corpus.mu must be held.
 func (gp *GerritProject) getGerritMessage(version int32, commit *GitCommit) *GerritMessage {
+	match := rxMsgRef.FindStringSubmatch(commit.Msg)
+	if match == nil {
+		return nil
+	}
 	return &GerritMessage{
 		Date:     commit.CommitTime,
-		Message:  commit.Msg,
+		Message:  match[1],
 		PatchSet: version,
 	}
 }
@@ -513,6 +520,8 @@ var rxRemoteRef = regexp.MustCompile(`^([0-9a-f]{40,})\s+refs/changes/[0-9a-f]{2
 // $1: change num
 // $2: version or "meta"
 var rxChangeRef = regexp.MustCompile(`^refs/changes/[0-9a-f]{2}/([0-9]+)/(meta|(?:\d+))`)
+
+var rxMsgRef = regexp.MustCompile(`(?ms:^(Patch Set [0-9]+:.+)\n\nPatch-set: [0-9]+)`)
 
 func (gp *GerritProject) sync(ctx context.Context, loop bool) error {
 	if err := gp.init(ctx); err != nil {

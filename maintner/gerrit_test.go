@@ -78,7 +78,11 @@ func TestGetGerritMessage(t *testing.T) {
 			Msg:        tt.in,
 			CommitTime: time.Now().UTC(),
 		}
-		msg := gp.getGerritMessage(gc)
+		msg := gp.getGerritMessage(1, gc)
+		// just checking these get copied through appropriately
+		if msg.PatchSet != 1 {
+			t.Errorf("getGerritMessage: want PatchSet 1, got %d", msg.PatchSet)
+		}
 		if msg.Date.IsZero() {
 			t.Errorf("getGerritMessage: expected Date to be non-zero, got zero")
 		}
