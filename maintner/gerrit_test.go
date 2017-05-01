@@ -4,7 +4,10 @@
 
 package maintner
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 var statusTests = []struct {
 	msg  string
@@ -66,7 +69,21 @@ Label: Code-Review=+2
 }
 
 func TestGetGerritMessage(t *testing.T) {
+	var c Corpus
+	c.EnableLeaderMode(new(dummyMutationLogger), "/fake/dir")
+	c.TrackGerrit("go.googlesource.com/build")
+	gp := c.gerrit.projects["go.googlesource.com/build"]
 	for _, tt := range messageTests {
-
+		gc := &GitCommit{
+			Msg:        tt.in,
+			CommitTime: time.Now().UTC(),
+		}
+		msg := gp.getGerritMessage(gc)
+		if msg.Date.IsZero() {
+			t.Errorf("getGerritMessage: expected Date to be non-zero, got zero")
+		}
+		if msg.Message != tt.out {
+			t.Errorf("getGerritMessage: want %q, got %q", tt.out, msg.Message)
+		}
 	}
 }

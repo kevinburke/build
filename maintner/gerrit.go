@@ -179,7 +179,7 @@ const SideRevision CommentSide = "REVISION"
 const SideParent CommentSide = "PARENT"
 
 type GerritComment struct {
-	PatchSet  int16
+	PatchSet  int32
 	ID        string
 	Path      string
 	Side      CommentSide
@@ -193,7 +193,7 @@ type GerritComment struct {
 }
 
 type GerritMessage struct {
-	PatchSet int16
+	PatchSet int32
 	// Raw message contents from Gerrit.
 	Message string
 	Date    time.Time
@@ -368,10 +368,12 @@ func (gp *GerritProject) foreachCommitParent(hash GitHash, f func(*GitCommit) er
 // if there wasn't one.
 //
 // Corpus.mu must be held.
-func (gp *GerritProject) getGerritMessage(commit *GitCommit) *GerritMessage {
-	fmt.Printf(`"%s"
-`, commit.Msg)
-	return nil
+func (gp *GerritProject) getGerritMessage(version int32, commit *GitCommit) *GerritMessage {
+	return &GerritMessage{
+		Date:     commit.CommitTime,
+		Message:  commit.Msg,
+		PatchSet: version,
+	}
 }
 
 // called with c.mu Locked
@@ -407,8 +409,7 @@ func (gp *GerritProject) processMutation(gm *maintpb.GerritMutation) {
 					foundStatus = status
 					return errStopIteration
 				}
-				fmt.Println("number", clv.CLNumber)
-				if message := gp.getGerritMessage(gc); message != nil {
+				if message := gp.getGerritMessage(clv.CLNumber, gc); message != nil {
 					messages = append(messages, nil)
 					copy(messages[1:], messages[:])
 					messages[0] = message
