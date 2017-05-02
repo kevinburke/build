@@ -485,6 +485,7 @@ func (gp *GerritProject) getOrCreateCL(num int32) *GerritCL {
 		Project:  gp,
 		Number:   num,
 		Comments: make([]*GerritComment, 0),
+		Messages: make([]*GerritMessage, 0),
 	}
 	gp.cls[num] = cl
 	return cl
