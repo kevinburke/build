@@ -168,44 +168,24 @@ type GerritCL struct {
 	// GitHubIssueRefs are parsed references to GitHub issues.
 	GitHubIssueRefs []GitHubIssueRef
 
-	Comments []*GerritComment
+	// Messages contains all of the messages for this CL, in sorted order.
 	Messages []*GerritMessage
 }
 
-// Side is a side a comment is added on.
-type CommentSide string
-
-const SideRevision CommentSide = "REVISION"
-const SideParent CommentSide = "PARENT"
-
-type GerritComment struct {
-	PatchSet  int32
-	ID        string
-	Path      string
-	Side      CommentSide
-	Line      int32
-	Range     *GerritCommentRange
-	InReplyTo string
-	Message   string
-	Updated   time.Time
-	Author    *GitPerson
-	Tag       string
-}
-
+// GerritMessage is a Gerrit reply that is attached to the CL as a whole, and
+// not to a file or line of a patch set.
+//
+// Maintner does very little parsing or formatting of a Message body. Messages
+// are stored the same way they are stored in the API.
 type GerritMessage struct {
+	// The patch set this message was sent on.
 	PatchSet int32
 	// Raw message contents from Gerrit.
 	Message string
-	Date    time.Time
+	// The date this message was stored.
+	Date time.Time
 
 	// TODO author id etc.
-}
-
-type GerritCommentRange struct {
-	StartLine      int32
-	EndLine        int32
-	StartCharacter int16
-	EndCharacter   int16
 }
 
 // References reports whether cl includes a commit message reference
@@ -371,15 +351,19 @@ func (gp *GerritProject) foreachCommitParent(hash GitHash, f func(*GitCommit) er
 // if there wasn't one.
 //
 // Corpus.mu must be held.
-func (gp *GerritProject) getGerritMessage(version int32, commit *GitCommit) *GerritMessage {
+func (gp *GerritProject) getGerritMessage(commit *GitCommit) *GerritMessage {
 	match := rxMsgRef.FindStringSubmatch(commit.Msg)
 	if match == nil {
 		return nil
 	}
+	version, err := strconv.ParseInt(match[2], 10, 32)
+	if err != nil {
+		panic(err)
+	}
 	return &GerritMessage{
 		Date:     commit.CommitTime,
 		Message:  match[1],
-		PatchSet: version,
+		PatchSet: int32(version),
 	}
 }
 
@@ -409,14 +393,17 @@ func (gp *GerritProject) processMutation(gm *maintpb.GerritMutation) {
 		if clv.Version == 0 {
 			oldMeta := cl.Meta
 			cl.Meta = gc
-			foundStatus := "new"
+			foundStatus := false
+			newStatus := "new"
 			messages := make([]*GerritMessage, 0)
 			gp.foreachCommitParent(cl.Meta.Hash, func(gc *GitCommit) error {
-				if status := getGerritStatus(gc); status != "" {
-					foundStatus = status
-					return errStopIteration
+				if status := getGerritStatus(gc); status != "" && foundStatus == false {
+					newStatus = status
+					foundStatus = true
 				}
-				if message := gp.getGerritMessage(clv.CLNumber, gc); message != nil {
+				if message := gp.getGerritMessage(gc); message != nil {
+					// Walk from the newest commit backwards, so we need to
+					// insert all messages at the beginning of the array.
 					messages = append(messages, nil)
 					copy(messages[1:], messages[:])
 					messages[0] = message
@@ -426,7 +413,7 @@ func (gp *GerritProject) processMutation(gm *maintpb.GerritMutation) {
 				}
 				return nil
 			})
-			cl.Status = foundStatus
+			cl.Status = newStatus
 			cl.Messages = append(cl.Messages, messages...)
 		} else {
 			cl.Commit = gc
@@ -484,7 +471,6 @@ func (gp *GerritProject) getOrCreateCL(num int32) *GerritCL {
 	cl = &GerritCL{
 		Project:  gp,
 		Number:   num,
-		Comments: make([]*GerritComment, 0),
 		Messages: make([]*GerritMessage, 0),
 	}
 	gp.cls[num] = cl
@@ -522,7 +508,7 @@ var rxRemoteRef = regexp.MustCompile(`^([0-9a-f]{40,})\s+refs/changes/[0-9a-f]{2
 // $2: version or "meta"
 var rxChangeRef = regexp.MustCompile(`^refs/changes/[0-9a-f]{2}/([0-9]+)/(meta|(?:\d+))`)
 
-var rxMsgRef = regexp.MustCompile(`(?ms:^(Patch Set [0-9]+:.+)\n\nPatch-set: [0-9]+)`)
+var rxMsgRef = regexp.MustCompile(`(?ms:^(Patch Set ([0-9]+):.+)\n\nPatch-set: [0-9]+)`)
 
 func (gp *GerritProject) sync(ctx context.Context, loop bool) error {
 	if err := gp.init(ctx); err != nil {
