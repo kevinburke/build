@@ -14,11 +14,11 @@ go:
   - tip
 
 script:
-  - go vet ./... || true
-  - go test -v -race ./...
-  - pushd cmd/coordinator && make docker-dev && popd
+  - pushd maintner/maintnerd && make docker-dev && popd
   - pushd cmd/gitmirror && make docker-dev && popd
+  - pushd cmd/coordinator && make docker-dev && popd
   - pushd cmd/gopherbot && make docker-dev && popd
   - pushd cmd/pubsubhelper && make docker-dev && popd
-  - pushd devapp/devappserver && make docker-dev && popd
-  - pushd maintner/maintnerd && make docker-dev && popd
+  - pushd devapp && make docker-dev && popd
+  - go vet ./... || true
+  - go test -v -race ./...
