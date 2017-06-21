@@ -20,6 +20,12 @@ RUN go get -d cloud.google.com/go/compute/metadata && \
 RUN go get -d golang.org/x/crypto/acme/autocert && \
     cd /go/src/golang.org/x/crypto && git reset --hard adbae1b6b6fb4b02448a0fc0dbbc9ba2b95b294d
 
+RUN go get -d github.com/gregjones/httpcache && \
+    cd /go/src/github.com/gregjones/httpcache && git reset --hard 0d2297f241a3503b4d464cd434e6d1490ec76e9a
+
+RUN go get -d go4.org/types && \
+    cd /go/src/go4.org && git reset --hard 034d17a462f7b2dcd1a4a73553ec5357ff6e6c6e
+
 # Optimization to speed COPY+go install steps later. This go install
 # isn't required for correctness.
 RUN go install \
@@ -27,6 +33,8 @@ RUN go install \
     golang.org/x/sync/errgroup \
     cloud.google.com/go/compute/metadata \
     cloud.google.com/go/storage \
+    github.com/gregjones/httpcache \
+    go4.org/types \
     golang.org/x/crypto/acme/autocert
 
 COPY . /go/src/golang.org/x/build/
